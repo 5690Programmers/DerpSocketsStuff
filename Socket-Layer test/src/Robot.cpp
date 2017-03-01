@@ -13,14 +13,23 @@
 #include <packets.h>
 #include <inet.h>
 
+#include "I2C.h"
+
+#include <CameraServer.h>
+#include <XboxController.h>
+#include <GenericHID.h>
+#include <GamepadBase.h>
+
+#define I2C_SLAVE_ADR 0x08 // ADXL345 I2C device address
 
 class Robot: public frc::SampleRobot {
 	frc::RobotDrive myRobot { 3, 2, 1, 0 };
-	frc::Joystick stick { 0 };
+	frc::XboxController Xbox { 0 };
 	frc::SendableChooser<std::string> chooser;
 	const std::string autoNameDefault = "Default";
 	const std::string autoNameCustom = "My Auto";
 
+	I2C *I2Channel;
 
 public:
 	Robot() {
@@ -28,22 +37,22 @@ public:
 		myRobot.SetExpiration(0.1);
 
 	}
-		 float x[3];
 
 
+	void visionTrack(struct track_packet *Steven);
 		  int					sockfd=0;             /* listen socket file descriptor */
 		  struct sockaddr_in	cli_addr;           /* write-to-client socket address */
 		  char                  inbuffer[MAXLINE];  /* incoming data */
 		  unsigned short        packid = 0;         /* incoming packet ID */
 		  int                   n=0;                  /* packet length */
 		  struct track_packet   track;              /* a track packet */
-
+		  int 					time;				/* time of packet*/
 
 	void RobotInit() {
-		chooser.AddDefault(autoNameDefault, autoNameDefault);
+		//chooser.AddDefault(auto NameDefault, autoNameDefault);
 		chooser.AddObject(autoNameCustom, autoNameCustom);
 		frc::SmartDashboard::PutData("Auto Modes", &chooser);
-
+		I2Channel = new I2C(I2C::kOnboard, I2C_SLAVE_ADR);
 		// create socket to receive zed tracking data
 		if (open_serverside_socket(&sockfd)) {
 		    fprintf(stderr,"Can't open socket\n");
@@ -53,7 +62,12 @@ public:
 		  }
 
 		// go start zed on jetson
-		system("ssh ubuntu@10.56.90.48 \"/home/ubuntu/zed > /dev/null 2>&1 &\"");
+		//system("ssh ubuntu@tegra-ubuntu.local \"killall zed;/home/ubuntu/zed > /dev/null 2>&1 &\"");
+		std::cout <<"...CONNECTING..." << std::endl;
+		system("ssh ubuntu@tegra-ubuntu.local \"killall zed.sh zed > /home/ubuntu/zed.log 2>&1; /home/ubuntu/zed.sh >> /home/ubuntu/zed.log 2>&1 &\"");
+		std::cout <<"...CONNECTED..." << std::endl;
+
+
 	}
 
 	/*
@@ -68,7 +82,7 @@ public:
 	 * SendableChooser make sure to add them to the chooser code above as well.
 	 */
 
-/*	void Autonomous() {
+	void Autonomous() {
 		auto autoSelected = chooser.GetSelected();
 		// std::string autoSelected = frc::SmartDashboard::GetString("Auto Selector", autoNameDefault);
 		std::cout << "Auto selected: " << autoSelected << std::endl;
@@ -89,58 +103,121 @@ public:
 			myRobot.Drive(0.0, 0.0);  // stop robot
 		}
 	}
-*/
+
 
 	/*
 	 * Runs the motors with arcade steering.
 	 */
 	void OperatorControl() override {
-		myRobot.SetSafetyEnabled(true);
+		int count = 0;
+		int pixelPosition = 0;
+		myRobot.SetSafetyEnabled(false);
 		while (IsOperatorControl() && IsEnabled()) {
 			// drive with arcade style (use right stick)
-			myRobot.ArcadeDrive(stick);
+
+
+			if(Xbox.GetAButton()){
+			if(pixelPosition == 9){
+				pixelPosition = 0;
+			}
+			else{
+				pixelPosition += 1;
+			}
+		}
+
+			if(Xbox.GetBButton()){
+				if(pixelPosition == 0){
+					pixelPosition = 9;
+				}
+			else{
+				pixelPosition -= 1;
+			}
+		}
+
+		switch(pixelPosition){
+			case 0:
+				I2Channel->Write(I2C_SLAVE_ADR, 111);
+				break;
+			case 1:
+				I2Channel->Write(I2C_SLAVE_ADR, 114);
+				break;
+			case 2:
+				I2Channel->Write(I2C_SLAVE_ADR, 103);
+				break;
+			case 3:
+				I2Channel->Write(I2C_SLAVE_ADR, 98);
+				break;
+			case 4:
+				I2Channel->Write(I2C_SLAVE_ADR, 117);
+				break;
+			case 5:
+				I2Channel->Write(I2C_SLAVE_ADR, 99);
+				break;
+			case 6:
+				I2Channel->Write(I2C_SLAVE_ADR, 104);
+				break;
+			case 7:
+				I2Channel->Write(I2C_SLAVE_ADR, 116);
+				break;
+			case 8:
+				I2Channel->Write(I2C_SLAVE_ADR, 112);
+				break;
+			case 9:
+				I2Channel->Write(I2C_SLAVE_ADR, 115);
+				break;
+		}
+
 
 			// read from zed socket
 		    n = get_packet(sockfd, &cli_addr, inbuffer);
 
+
+
+
+
 		    if (n>0) { // There was a message!
+
+
 
 		    /* Find packet type */
 
 		    memcpy(&packid,inbuffer,sizeof(track.packet_id));
 		    packid = ntohs(packid);
-
+		    count++;
 		/* deal with that packet */
-
 		    switch (packid) {
 		    case PID_TRACK:
 		      handle_track(inbuffer,n,&track);
+			    if (count%20 == 0) {
+		      std::cout <<"packet length : " << n << std::endl;
 		      std::cout <<"packet_id : " << track.packet_id << std::endl; /* print packet to stdout */
 		      std::cout <<"sequence : "<< track.sequence << std::endl;
-		      std::cout <<"region_id : "<< track.region_id << std::endl;
 		      std::cout <<"range : "<< track.range << std::endl;
-		      std::cout <<"x : "<< track.x << std::endl;
-		      std::cout <<"y : "<< track.y << std::endl;
-		      std::cout <<"aspect_ratio : "<< track.aspect_ratio << std::endl;
+		      std::cout <<"x1 : "<< track.x1 << std::endl;
+		      std::cout <<"x2 : "<< track.x2 << std::endl;
+		      std::cout <<"time: "<< track.time << std::endl;
 		      std::cout <<"\n"<< std::endl;
+			    }
+		     //visionTrack(&track);
+
 		      break;
 		    default:
 		      fprintf(stderr,"Unknown packet type %d and length %d\n",packid,n);
-
 		    }
-
-
-
-
-
-
 		    }
+			 if (Xbox.GetYButton())
+									      {
 
+
+									    	std::cout <<"...ACTIVATING..." << std::endl;
+									    	  visionTrack(&track);
+
+							      		}
+			 else
+					myRobot.ArcadeDrive(Xbox);
 
 
 		}
-
-
 			// wait for a motor update time
 			frc::Wait(0.005);
 	}
@@ -154,8 +231,50 @@ public:
 	}
 };
 
+/* Array */
+//gimme a button
+void Robot::visionTrack(struct track_packet *Steven) {
+
+//static uint x1
 
 
+short avgx;  //average of the two contours
+static const short midx = 366;
+//static const short midy = 188;
+static const short deadzone = 45;
+
+avgx = (Steven->x1 + Steven->x2)/2;
+if (Steven->range <= 10 && Steven->range >= 100){
+	myRobot.ArcadeDrive(0.0, 0.0);
+		return;
+	}
+
+if(avgx < (midx-deadzone)) //when average is less than the mid point turn left
+{
+	myRobot.ArcadeDrive(-0.0,0.65); //check direction
+	Wait(.05);
+std::cout <<"LEFT" << std::endl;
+}
+else if(avgx > (midx+deadzone))
+{
+	myRobot.ArcadeDrive(-0.0, -0.65);
+	Wait(.05);
+	std::cout <<"RIGHT" << std::endl;
+}
+else if ((-deadzone < avgx) && (avgx > deadzone))
+{
+
+
+			myRobot.ArcadeDrive(-0.5 ,0); //check direction
+			Wait(.05);
+			std::cout <<"FORWARD" << std::endl;
+}
+
+
+
+
+
+}
 /*
 packets.c
 */
@@ -196,11 +315,11 @@ int pack_track(char *outbuffer, struct track_packet *outpacket)
 
   outpacket->packet_id = htons(outpacket->packet_id);
   outpacket->sequence = htonl(outpacket->sequence);
-  outpacket->region_id = htons(outpacket->region_id);
   outpacket->range = htonl(outpacket->range);
-  outpacket->x = htons(outpacket->x);
-  outpacket->y = htons(outpacket->y);
-  outpacket->aspect_ratio = htonl(outpacket->aspect_ratio);
+  outpacket->x1 = htons(outpacket->x1);
+  outpacket->x2 = htons(outpacket->x2);
+  outpacket->time = htonl(outpacket->time);
+
 
 /* pack send info into the buffer */
 
@@ -215,18 +334,25 @@ int get_packet(int sockfd, struct sockaddr_in *pcli_addr, char *mesg)
 /*     struct sockaddr_in	*pcli_addr;	 ptr to client sockaddr structure */
 /*     char	        *mesg;           input buffer */
 {
-  int	       n;
+  int	       n=1;
   socklen_t clilen;
+  char readbuffer[MAXLINE+1];
 
 /* read a buffer from the socket */
 
   clilen = sizeof(*pcli_addr);
+/*while (n>0) { // read until we can't read anymore, to get freshest data
+  n = (int)recvfrom(sockfd, readbuffer, MAXLINE, MSG_DONTWAIT, (struct sockaddr *)pcli_addr,
+	       &clilen);
+ if (n > 0) {
+   memcpy(mesg,readbuffer,n);
+ }
+}*/
   n = (int)recvfrom(sockfd, mesg, MAXLINE, MSG_DONTWAIT, (struct sockaddr *)pcli_addr,
 	       &clilen);
- // if (n < 0)
-  //  fprintf(stderr,"dg_echo: recvfrom error");
-  mesg[n] = 0;           /* null terminate */
-  if (n>0) printf("From %s:\n",inet_ntoa(pcli_addr->sin_addr));
+
+  if (n>0) mesg[n] = 0;           /* null terminate */
+  //if (n>0) printf("From %s:\n",inet_ntoa(pcli_addr->sin_addr));
   return(n);
 }
 
@@ -252,11 +378,10 @@ void handle_track(char *inbuffer, int n,struct track_packet *inpacket)
 
   inpacket->packet_id = ntohs(inpacket->packet_id);
   inpacket->sequence = ntohl(inpacket->sequence);
-  inpacket->region_id = ntohs(inpacket->region_id);
   inpacket->range = ntohl(inpacket->range);
-  inpacket->x = ntohs(inpacket->x);
-  inpacket->y = ntohs(inpacket->y);
-  inpacket->aspect_ratio = ntohl(inpacket->aspect_ratio);
+  inpacket->x1 = ntohs(inpacket->x1);
+  inpacket->x2 = ntohs(inpacket->x2);
+  inpacket->time = ntohl(inpacket->time);
 }
 
 
