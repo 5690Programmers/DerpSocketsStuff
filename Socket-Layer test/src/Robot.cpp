@@ -64,7 +64,7 @@ public:
 		// go start zed on jetson
 		//system("ssh ubuntu@tegra-ubuntu.local \"killall zed;/home/ubuntu/zed > /dev/null 2>&1 &\"");
 		std::cout <<"...CONNECTING..." << std::endl;
-		system("ssh ubuntu@tegra-ubuntu.local \"killall zed.sh zed > /home/ubuntu/zed.log 2>&1; /home/ubuntu/zed.sh >> /home/ubuntu/zed.log 2>&1 &\"");
+		system("ssh 10.56.90.3 \"killall zed.sh zed > /home/ubuntu/zed.log 2>&1; /home/ubuntu/zed.sh >> /home/ubuntu/zed.log 2>&1 &\"");
 		std::cout <<"...CONNECTED..." << std::endl;
 
 
@@ -235,33 +235,34 @@ public:
 //gimme a button
 void Robot::visionTrack(struct track_packet *Steven) {
 
-//static uint x1
 
 
+//X2 is right x and x1 is left
+	//Values increase along normal axis left x is zero
 short avgx;  //average of the two contours
-static const short midx = 366;
 //static const short midy = 188;
-static const short deadzone = 45;
+//static const short minrange = 240000;
+//avgx = (Steven->x1 + Steven->x2)/2;
 
-avgx = (Steven->x1 + Steven->x2)/2;
-if (Steven->range <= 10 && Steven->range >= 100){
+
+if (Steven->range <= 240000/*was 10*/ or Steven->range == 0){
 	myRobot.ArcadeDrive(0.0, 0.0);
 		return;
 	}
 
-if(avgx < (midx-deadzone)) //when average is less than the mid point turn left
+if(Steven->x1 < 294 ) //when average is less than the mid point turn left
 {
-	myRobot.ArcadeDrive(-0.0,0.65); //check direction
+	myRobot.ArcadeDrive(-0.5,0.25); //check direction
 	Wait(.05);
 std::cout <<"LEFT" << std::endl;
 }
-else if(avgx > (midx+deadzone))
+else if(Steven->x2 > 306)
 {
-	myRobot.ArcadeDrive(-0.0, -0.65);
+	myRobot.ArcadeDrive(-0.5, -0.25);
 	Wait(.05);
 	std::cout <<"RIGHT" << std::endl;
 }
-else if ((-deadzone < avgx) && (avgx > deadzone))
+else if((Steven->x1 + Steven->x2)/2 > 295 or (Steven->x1 + Steven->x2)/2 < 305)
 {
 
 
