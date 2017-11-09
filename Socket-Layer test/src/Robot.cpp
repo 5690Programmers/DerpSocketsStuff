@@ -3,8 +3,6 @@
 #include <string>
 
 
-#include <AHRS.h>
-
 #include <Joystick.h>
 #include <SampleRobot.h>
 #include <SmartDashboard/SendableChooser.h>
@@ -24,8 +22,6 @@
 
 #define I2C_SLAVE_ADR 0x08 // ADXL345 I2C device address
 
-
-
 class Robot: public frc::SampleRobot {
 	frc::RobotDrive myRobot { 3, 2, 1, 0 };
 	frc::XboxController Xbox { 0 };
@@ -33,59 +29,13 @@ class Robot: public frc::SampleRobot {
 	const std::string autoNameDefault = "Default";
 	const std::string autoNameCustom = "My Auto";
 
-	AHRS *ahrs;
-	PIDController *turnController;
-
-	double rotateToAngleRate;
-
-	const static double kP = 0.03f;
-	const static double kI = 0.00f;
-	const static double kD = 0.00f;
-	const static double kF = 0.00f;
-
-	const static double kToleranceDegrees = 2.0f;
-
-
-
 	I2C *I2Channel;
 
 public:
-	virtual void PIDWrite(double output) {
-		this->rotateToAngleRate = output;
-	}
-
-
-	Robot()
-
-
-
-
-	{
+	Robot() {
 		//Note SmartDashboard is not initialized here, wait until RobotInit to make SmartDashboard calls
 		myRobot.SetExpiration(0.1);
 
-		rotateToAngleRate = 0.0f;
-
-		try {
-			//connect with catch
-			ahrs = new AHRS(SPI::Port::kMXP);
-		} catch (std::exception& ex ) {
-			std::string err_string = "Error instantiating our lil navX MXP:     ";
-			err_string += ex.what();
-			DriverStation::ReportError(err_sting.c_str());
-		}
-		turnController = new PIDController(kP, kI, kD, kF, ahrs, this);
-		turnController->SetInputRange(-180.0f, 180.0f);
-		turnController->SetOutputRange(-1.0, 1.0);
-        turnController->SetAbsoluteTolerance(kToleranceDegrees);
-		turnController->SetContinuous(true);
-
-
-
-		 LiveWindow::GetInstance()->AddActuator("DriveSystem", "RotateController", turnController);
-		 if ( ahrs ) {
-           LiveWindow::GetInstance()->AddSensor("IMU", "Gyro", ahrs);
-		}
 	}
 
 
@@ -164,10 +114,70 @@ public:
 		myRobot.SetSafetyEnabled(false);
 		while (IsOperatorControl() && IsEnabled()) {
 			// drive with arcade style (use right stick)
+
+
+			if(Xbox.GetAButton()){
+			if(pixelPosition == 9){
+				pixelPosition = 0;
+			}
+			else{
+				pixelPosition += 1;
+			}
+		}
+
+			if(Xbox.GetBButton()){
+				if(pixelPosition == 0){
+					pixelPosition = 9;
+				}
+			else{
+				pixelPosition -= 1;
+			}
+		}
+
+		switch(pixelPosition){
+			case 0:
+				I2Channel->Write(I2C_SLAVE_ADR, 111);
+				break;
+			case 1:
+				I2Channel->Write(I2C_SLAVE_ADR, 114);
+				break;
+			case 2:
+				I2Channel->Write(I2C_SLAVE_ADR, 103);
+				break;
+			case 3:
+				I2Channel->Write(I2C_SLAVE_ADR, 98);
+				break;
+			case 4:
+				I2Channel->Write(I2C_SLAVE_ADR, 117);
+				break;
+			case 5:
+				I2Channel->Write(I2C_SLAVE_ADR, 99);
+				break;
+			case 6:
+				I2Channel->Write(I2C_SLAVE_ADR, 104);
+				break;
+			case 7:
+				I2Channel->Write(I2C_SLAVE_ADR, 116);
+				break;
+			case 8:
+				I2Channel->Write(I2C_SLAVE_ADR, 112);
+				break;
+			case 9:
+				I2Channel->Write(I2C_SLAVE_ADR, 115);
+				break;
+		}
+
+
 			// read from zed socket
 		    n = get_packet(sockfd, &cli_addr, inbuffer);
 
+
+
+
+
 		    if (n>0) { // There was a message!
+
+
 
 		    /* Find packet type */
 
@@ -195,28 +205,16 @@ public:
 		      fprintf(stderr,"Unknown packet type %d and length %d\n",packid,n);
 		    }
 		    }
+			 if (Xbox.GetYButton())
+									      {
 
 
-		    bool  reset_yaw_button_pressed = Xbox.GetAButton();
-		    if( reset_yaw_button_pressed) {
-		    	ahrs->ZeroYaw();
-		    }
-		    bool rotateToAngle = false;
-		    if ( Xbox.GetBButton) {
-		    	turnController->SetSetpoint(90.0f); //angle
-		    	rotateToAngle = true;
-		    }
+									    	std::cout <<"...ACTIVATING..." << std::endl;
+									    	  visionTrack(&track);
 
-
-
-
-		    if (Xbox.GetYButton)
-		    {
-		    	std::cout <<"...ACTIVATING..." << std::endl;
-		    	visionTrack(&track);
-			}
+							      		}
 			 else
-				myRobot.ArcadeDrive(Xbox);
+					myRobot.ArcadeDrive(Xbox);
 
 
 		}
